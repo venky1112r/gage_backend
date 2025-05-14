@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, make_response
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 from databricks import sql
 from dotenv import load_dotenv
 import os
@@ -97,7 +97,7 @@ def login():
                     "token",
                     token,
                     httponly=True,
-                    samesite="Lax",
+                    samesite="None",
                     secure=False  # set to True in production with HTTPS
                 )
                 response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
@@ -108,6 +108,7 @@ def login():
 
 # ✅ Protected route
 @app.route('/api/protected', methods=['GET'])
+@cross_origin(origin="http://localhost:5173", supports_credentials=True)
 def protected():
     print(f"Received token1:", request) 
     print(f"Received token2:", request.cookies) 

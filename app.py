@@ -12,7 +12,7 @@ load_dotenv()
 app = Flask(__name__)
 
 # Enable CORS
-CORS(app, origins=["http://localhost:5173"], supports_credentials=True)
+CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
 
 # Databricks connection
 HOST = os.getenv('DATABRICKS_HOST')
@@ -98,7 +98,7 @@ def login():
                     token,
                     httponly=True,
                     samesite="None",
-                    secure=False  # set to True in production with HTTPS
+                    secure=True  # set to True in production with HTTPS
                 )
                 response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
                 response.headers["Access-Control-Allow-Credentials"] = "true"
@@ -110,15 +110,12 @@ def login():
 @app.route('/api/protected', methods=['GET'])
 @cross_origin(origin="http://localhost:5173", supports_credentials=True)
 def protected():
-    print(f"Received token1:", request) 
-    print(f"Received token2:", request.cookies) 
+
     token = request.cookies.get('token')  # Get the token from the cookie
     print(f"Received token1:", token)  # Log the token for debugging
 
     if not token:
         return jsonify({"message": "Unauthorized - No token provided"}), 401
-
-    print(f"Received token:", token)  # Log the token for debugging
 
     try:
         decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
@@ -141,4 +138,4 @@ def logout():
 
 # Run app
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=3000, host="localhost")

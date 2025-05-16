@@ -84,27 +84,39 @@ def login():
     try:
         with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
             with connection.cursor() as cursor:
-                cursor.execute(f"SELECT password FROM gage_dev_databricks.gold_layer.customer WHERE email = '{email}'")
+                cursor.execute(f"""
+                    SELECT password, userrole 
+                    FROM gage_dev_databricks.gold_layer.customer 
+                    WHERE email = ?
+                """, (email,))
+                
                 result = cursor.fetchone()
 
-                if not result or password != result[0]:  # Replace with hash check
+                if not result or password != result[0]:  # Replace with hash check in production
                     return jsonify({"message": "Invalid email or password"}), 401
 
+                userrole = result[1]
                 token = generate_jwt(email)
-                print(f"Generated token: {token}")  # Log the token for debugging
-                response = make_response(jsonify({"message": "Login successful"}))
+                print(f"Generated token: {token}")  # Debug log
+                print(f"User Role: {userrole}")  # Debug log
+
+                response = make_response(jsonify({
+                    "message": "Login successful",
+                    "userrole": userrole
+                })) 
                 response.set_cookie(
                     "token",
                     token,
                     httponly=True,
                     samesite="None",
-                    secure=True  # set to True in production with HTTPS
+                    secure=True  # Use True only in production with HTTPS
                 )
                 response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 return response
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 # ✅ Protected route
 @app.route('/api/protected', methods=['GET'])
@@ -131,10 +143,91 @@ def protected():
 @app.route("/api/logout", methods=["POST"])
 def logout():
     response = make_response(jsonify({"message": "Logged out"}))
-    response.set_cookie("token", "", expires=0, httponly=True)
-    response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.set_cookie(
+        "token",                 # Same name used for login
+        "",                      # Clear the cookie
+        expires=0,               # Expire immediately
+        httponly=True,           # Prevent JS access
+        samesite="Lax",          # Or "None" if you're using cross-site + HTTPS
+        secure=False             # True in production (must use HTTPS)
+    )
     return response
+
+
+
+@app.route('/insert-user', methods=['POST'])
+def insert_user():
+    try:
+        data = request.json
+
+        # Validate required fields (optional, for safety)
+        required_fields = [
+            "customerid", "customername", "source", "customertype", "erp", "plantname",
+            "plantid", "locationname", "locationid", "firstname", "lastname", "userid",
+            "email", "userrole", "createddate", "modifydate", "password"
+        ]
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"error": f"Missing field: {field}"}), 400
+
+        # Connect and insert
+        with sql.connect(
+            server_hostname=HOST,
+            http_path=HTTP_PATH,
+            access_token=ACCESS_TOKEN
+        ) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(f"""
+                    INSERT INTO gage_dev_databricks.gold_layer.customer (
+                        customerid, customername, source, customertype, erp,
+                        plantname, plantid, locationname, locationid, firstname,
+                        lastname, userid, email, userrole, createddate, modifydate, password
+                    ) VALUES (
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    )
+                """, (
+                    data['customerid'], data['customername'], data['source'], data['customertype'], data['erp'],
+                    data['plantname'], data['plantid'], data['locationname'], data['locationid'], data['firstname'],
+                    data['lastname'], data['userid'], data['email'], data['userrole'],
+                    data['createddate'], data['modifydate'], data['password']
+                ))
+
+        return jsonify({"status": "User inserted successfully ✅"})
+    
+    
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route('/delete-user', methods=['DELETE'])
+def delete_user():
+    data = request.get_json()
+    print("Delete request data:", data)
+
+    if not data or 'userrole' not in data:
+        return jsonify({"error": "Missing field: userrole"}), 400
+
+    userrole = data['userrole']
+
+    try:
+        # Example: Connect to your Databricks or database here
+        with sql.connect(
+            server_hostname=HOST,
+            http_path=HTTP_PATH,
+            access_token=ACCESS_TOKEN
+        ) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    DELETE FROM gage_dev_databricks.gold_layer.customer
+                    WHERE userrole = ?
+                """, (userrole,))
+        
+        return jsonify({"status": f"User with userid '{userrole}' deleted successfully ✅"})
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # Run app
 if __name__ == '__main__':

@@ -43,7 +43,7 @@ def home():
     return "Flask backend for GAGE is running"
 
 @app.route('/test-connection')
-def test_connection():
+def test_connection():  
     try:
         with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
             return jsonify({"status": "Connected to Databricks ✅"})

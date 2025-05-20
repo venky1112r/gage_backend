@@ -21,7 +21,7 @@ ACCESS_TOKEN = os.getenv('DATABRICKS_TOKEN')
 
 # JWT setup
 SECRET_KEY = os.getenv("JWT_SECRET")
-JWT_EXP_DELTA_SECONDS = 3600
+JWT_EXP_DELTA_SECONDS = 300  # 5 minutes
 
 def generate_jwt(email):
     payload = {
@@ -63,7 +63,7 @@ def get_data():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ✅ Login Route with JWT cookie
+# ✅ Login Route with JWT returned in response
 @app.route('/api/login', methods=['POST', 'OPTIONS'])
 def login():
     if request.method == 'OPTIONS':
@@ -92,42 +92,36 @@ def login():
                 
                 result = cursor.fetchone()
 
-                if not result or password != result[0]:  # Replace with hash check in production
+                if not result or password != result[0]:
                     return jsonify({"message": "Invalid email or password"}), 401
 
                 userrole = result[1]
                 token = generate_jwt(email)
-                print(f"Generated token: {token}")  # Debug log
-                print(f"User Role: {userrole}")  # Debug log
+                print(f"Generated token: {token}")
+                print(f"User Role: {userrole}")
 
-                response = make_response(jsonify({
+                response = jsonify({
                     "message": "Login successful",
-                    "userrole": userrole
-                })) 
-                response.set_cookie(
-                    "token",
-                    token,
-                    httponly=True,
-                    samesite="None",
-                    secure=True  # Use True only in production with HTTPS
-                )
+                    "userrole": userrole,
+                    "token": token  # Send token to frontend
+                })
                 response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 return response
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# ✅ Protected route
+# ✅ Protected route using Authorization header
 @app.route('/api/protected', methods=['GET'])
 @cross_origin(origin="http://localhost:5173", supports_credentials=True)
 def protected():
+    auth_header = request.headers.get('Authorization')
 
-    token = request.cookies.get('token')  # Get the token from the cookie
-    print(f"Received token1:", token)  # Log the token for debugging
-
-    if not token:
+    if not auth_header or not auth_header.startswith("Bearer "):
         return jsonify({"message": "Unauthorized - No token provided"}), 401
+
+    token = auth_header.split(" ")[1]
+    print(f"Received token:", token)
 
     try:
         decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
@@ -137,23 +131,19 @@ def protected():
     except jwt.InvalidTokenError:
         return jsonify({"message": "Invalid token"}), 401
 
-
-
 # ✅ Logout route (optional)
-@app.route("/api/logout", methods=["POST"])
-def logout():
-    response = make_response(jsonify({"message": "Logged out"}))
-    response.set_cookie(
-        "token",                 # Same name used for login
-        "",                      # Clear the cookie
-        expires=0,               # Expire immediately
-        httponly=True,           # Prevent JS access
-        samesite="Lax",          # Or "None" if you're using cross-site + HTTPS
-        secure=False             # True in production (must use HTTPS)
-    )
-    return response
-
-
+# @app.route("/api/logout", methods=["POST"])
+# def logout():
+#     response = make_response(jsonify({"message": "Logged out"}))
+#     response.set_cookie(
+#         "token",
+#         "",
+#         expires=0,
+#         httponly=True,
+#         samesite="Lax",
+#         secure=False
+#     )
+#     return response
 
 @app.route('/insert-user', methods=['POST'])
 def insert_user():
@@ -193,13 +183,8 @@ def insert_user():
                 ))
 
         return jsonify({"status": "User inserted successfully ✅"})
-    
-    
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
 
 @app.route('/delete-user', methods=['DELETE'])
 def delete_user():
@@ -212,7 +197,6 @@ def delete_user():
     userrole = data['userrole']
 
     try:
-        # Example: Connect to your Databricks or database here
         with sql.connect(
             server_hostname=HOST,
             http_path=HTTP_PATH,
@@ -225,7 +209,6 @@ def delete_user():
                 """, (userrole,))
         
         return jsonify({"status": f"User with userid '{userrole}' deleted successfully ✅"})
-    
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

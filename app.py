@@ -11,8 +11,10 @@ load_dotenv()
 
 app = Flask(__name__)
 
+FrontendOrigin = "http://172.172.147.218"
+# FrontendOrigin = "http://localhost:5173"
 # Enable CORS
-CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
+CORS(app, supports_credentials=True, origins=[FrontendOrigin])
 
 # Databricks connection
 HOST = os.getenv('DATABRICKS_HOST')
@@ -68,7 +70,7 @@ def get_data():
 def login():
     if request.method == 'OPTIONS':
         response = make_response()
-        response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+        response.headers["Access-Control-Allow-Origin"] = FrontendOrigin
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
@@ -105,7 +107,7 @@ def login():
                     "userrole": userrole,
                     "token": token  # Send token to frontend
                 })
-                response.headers["Access-Control-Allow-Origin"] = "http://localhost:5173"
+                response.headers["Access-Control-Allow-Origin"] = FrontendOrigin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 return response
     except Exception as e:
@@ -113,7 +115,7 @@ def login():
 
 # ✅ Protected route using Authorization header
 @app.route('/api/protected', methods=['GET'])
-@cross_origin(origin="http://localhost:5173", supports_credentials=True)
+@cross_origin(origin=FrontendOrigin, supports_credentials=True)
 def protected():
     auth_header = request.headers.get('Authorization')
 
@@ -211,7 +213,122 @@ def delete_user():
         return jsonify({"status": f"User with userid '{userrole}' deleted successfully ✅"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/api/dashboard-metrics', methods=['GET'])
+def dashboard():
+    try:
+        with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+            with connection.cursor() as cursor:
+                # Contracted CI Score
+                cursor.execute("SELECT ROUND(AVG(ci_score_final_gc02e_per_MJ), 2)FROM gold_layer.dashboard_info;")
+                ci_score = cursor.fetchone()[0]
+
+                # Total Bushels
+                cursor.execute("SELECT ROUND(SUM(contract_contractquantity), 2)FROM gold_layer.dashboard_info;")
+                total_bushels = cursor.fetchone()[0]
+
+                # Authorized Grower Percentage
+                cursor.execute("""
+                    SELECT ROUND(AVG(CASE WHEN contract_schedules_schedule_nameidtype = 'C' THEN 100.0 ELSE 0.0 END), 2)
+FROM gold_layer.dashboard_info;
+                """)
+                authorized_grower = cursor.fetchone()[0]
+
+                # Contract BI CI Score Level Delivered
+                cursor.execute("""
+                    SELECT
+                        CASE
+                            WHEN contract_schedules_schedule_nameidtype = 'C' THEN 'Customer'
+                            WHEN contract_schedules_schedule_nameidtype = 'G' THEN 'Retailer'
+                            ELSE 'Custom'
+                        END AS nameidtype,
+                        ROUND(SUM(contract_appliedquantity), 2) AS total_delivered
+                    FROM gold_layer.dashboard_info
+                    GROUP BY contract_schedules_schedule_nameidtype;
+                """)
+                contract_delivered_data = cursor.fetchall()
+                contract_delivered = [{"nameidtype": row[0], "total_delivered": row[1]} for row in contract_delivered_data]
+
+                # Contract BI CI Score Level Pending 
+                cursor.execute("""
+                    SELECT
+                        CASE
+                            WHEN contract_schedules_schedule_nameidtype = 'C' THEN 'Customer'
+                            WHEN contract_schedules_schedule_nameidtype = 'G' THEN 'Retailer'
+                            ELSE 'Custom'
+                        END AS nameidtype,
+                        ROUND(SUM(contract_remainingquantity), 2) AS total_pending
+                    FROM gold_layer.dashboard_info
+                    GROUP BY contract_schedules_schedule_nameidtype;
+                """)
+                contract_pending_data = cursor.fetchall()
+                contract_pending = [{"nameidtype": row[0], "total_pending": row[1]} for row in contract_pending_data]
+
+
+                # bushels by ci score delivered
+                cursor.execute("""
+                                        SELECT
+                        CASE
+                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                            ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+                        END AS customertype,
+                        ROUND(SUM(contract_appliedquantity), 2) AS Bushels
+                    FROM
+                        gold_layer.dashboard_info
+                    GROUP BY
+                        CASE
+                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                            ELSE 'Other'
+                        END;
+                """)
+                delivered_data = cursor.fetchall()
+                delivered = [{"role": row[0], "delivered": row[1]} for row in delivered_data]
+
+                # bushels by ci score Pending
+                cursor.execute("""
+                    SELECT
+    CASE
+        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+        ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+    END AS customertype,
+    ROUND(SUM(contract_remainingquantity), 2) AS Bushels
+FROM
+    gold_layer.dashboard_info
+GROUP BY
+    CASE
+        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+        ELSE 'Other'
+    END;
+                """)
+                pending_data = cursor.fetchall()
+                pending = [{"role": row[0], "pending": row[1]} for row in pending_data]
+
+        return jsonify({
+            "contracted_ci_score": ci_score,
+            "total_bushels": total_bushels,
+            "authorized_grower_percentage": authorized_grower,
+             "contract_ci_score_level_delivered": contract_delivered,
+            "contract_ci_score_level_pending": contract_pending,
+            "ci_score_level_delivered": delivered,
+            "ci_score_level_pending": pending
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 # Run app
 if __name__ == '__main__':
-    app.run(debug=True, port=3000, host="localhost")
+    # app.run(debug=True, port=3000, host="localhost")
+    app.run(debug=True, port=3000, host="0.0.0.0")

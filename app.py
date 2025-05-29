@@ -11,8 +11,8 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# FrontendOrigin = "http://172.172.147.218"
-FrontendOrigin = "http://localhost:5173"
+FrontendOrigin = "http://172.172.147.218"
+# FrontendOrigin = "http://localhost:5173"
 # Enable CORS
 CORS(app, supports_credentials=True, origins=[FrontendOrigin])
 
@@ -235,34 +235,60 @@ FROM gold_layer.dashboard_info;
                 authorized_grower = cursor.fetchone()[0]
 
                 # Contract BI CI Score Level Delivered
+
                 cursor.execute("""
                     SELECT
                         CASE
-                            WHEN contract_schedules_schedule_nameidtype = 'C' THEN 'Customer'
-                            WHEN contract_schedules_schedule_nameidtype = 'G' THEN 'Retailer'
-                            ELSE 'Custom'
-                        END AS nameidtype,
-                        ROUND(SUM(contract_appliedquantity), 2) AS total_delivered
-                    FROM gold_layer.dashboard_info
-                    GROUP BY contract_schedules_schedule_nameidtype;
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                            ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+                        END AS customertype,
+                        ROUND(SUM(c.SuppliedQuantity),2) AS Bushels,
+                        ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
+                    from gold.contract c
+                        left outer join bronze.cultura_ci ci on ci.producer_id=c.NameID
+                    GROUP BY
+                        CASE
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                            ELSE 'Other'
+                    END;
                 """)
                 contract_delivered_data = cursor.fetchall()
-                contract_delivered = [{"nameidtype": row[0], "total_delivered": row[1]} for row in contract_delivered_data]
+                
+                contract_delivered = [{"nameidtype": row[0], "total_delivered": row[1], "ci_score": row[2]} for row in contract_delivered_data if len(row) >= 3]
+
 
                 # Contract BI CI Score Level Pending 
+
                 cursor.execute("""
-                    SELECT
-                        CASE
-                            WHEN contract_schedules_schedule_nameidtype = 'C' THEN 'Customer'
-                            WHEN contract_schedules_schedule_nameidtype = 'G' THEN 'Retailer'
-                            ELSE 'Custom'
-                        END AS nameidtype,
-                        ROUND(SUM(contract_remainingquantity), 2) AS total_pending
-                    FROM gold_layer.dashboard_info
-                    GROUP BY contract_schedules_schedule_nameidtype;
+                   SELECT
+                                    CASE
+                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                                        ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+                                    END AS customertype,
+                                    ROUND(SUM(c.RemainingQuantity),2) AS Bushels,
+                                    ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
+                                from gold.contract c
+                                    left outer join bronze.cultura_ci ci on ci.producer_id=c.NameID
+                                GROUP BY
+                                    CASE
+                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                                        ELSE 'Other'
+                                END;
                 """)
                 contract_pending_data = cursor.fetchall()
-                contract_pending = [{"nameidtype": row[0], "total_pending": row[1]} for row in contract_pending_data]
+                contract_pending = [{"nameidtype": row[0], "total_pending": row[1], "ci_score": row[2]} for row in contract_pending_data if len(row) >= 3]
 
 
                 # bushels by ci score delivered
@@ -288,7 +314,8 @@ FROM gold_layer.dashboard_info;
                         END;
                 """)
                 delivered_data = cursor.fetchall()
-                delivered = [{"role": row[0], "delivered": row[1]} for row in delivered_data]
+            
+                bushels_delivered = [{"role": row[0], "delivered": row[1], "ci_score": row[2]} for row in delivered_data if len(row) >= 3]
 
                 # bushels by ci score Pending
                 cursor.execute("""
@@ -313,24 +340,24 @@ GROUP BY
     END;
                 """)
                 pending_data = cursor.fetchall()
-                pending = [{"role": row[0], "pending": row[1]} for row in pending_data]
+                bushels_pending = [{"role": row[0], "pending": row[1], "ci_score": row[2]} for row in pending_data if len(row) >= 3]
 
             # summary card data 
                 cursor.execute("""
-    SELECT 
-  contractedciscore,
-  contractedbushels,
-  rebate,
-  authorizedgrowers
-FROM gold_layer.metadata;
- """)           
+                    SELECT 
+                contractedciscore,
+                contractedbushels,
+                rebate,
+                authorizedgrowers
+                FROM gold_layer.metadata;
+                """)           
                 summary_data = cursor.fetchall()
                 summary = [{
-    "contracted_ci_score": row[0],
-    "contracted_bushels": row[1],
-    "rebate": row[2],
-    "authorized_growers": row[3]
-} for row in summary_data]
+                    "contracted_ci_score": row[0],
+                    "contracted_bushels": row[1],
+                    "rebate": row[2],
+                    "authorized_growers": row[3]
+                } for row in summary_data]
                 
                 print(f"Summary Data:", summary_data)
 
@@ -340,8 +367,8 @@ FROM gold_layer.metadata;
             "authorized_grower_percentage": authorized_grower,
              "contract_ci_score_level_delivered": contract_delivered,
             "contract_ci_score_level_pending": contract_pending,
-            "ci_score_level_delivered": delivered,
-            "ci_score_level_pending": pending,
+            "bushels_ci_score_level_delivered": bushels_delivered,
+            "bushels_ci_score_level_pending": bushels_pending,
             "summary": summary
         })
     except Exception as e:
@@ -350,5 +377,5 @@ FROM gold_layer.metadata;
 
 # Run app
 if __name__ == '__main__':
-    app.run(debug=True, port=3000, host="localhost")
-    # app.run(debug=True, port=3000, host="0.0.0.0")
+    # app.run(debug=True, port=3000, host="localhost")
+    app.run(debug=True, port=3000, host="0.0.0.0")

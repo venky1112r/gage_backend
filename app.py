@@ -6,24 +6,40 @@ import os
 import jwt
 import datetime
 
+# Azure Key Vault imports
+from azure.identity import ClientSecretCredential
+from azure.keyvault.secrets import SecretClient
+
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
+# FrontendOrigin = "http://172.172.147.218"
+FrontendOrigin = "http://localhost:5173"
 
-FrontendOrigin = "http://172.172.147.218"
-# FrontendOrigin = "http://localhost:5173"
-# Enable CORS
 CORS(app, supports_credentials=True, origins=[FrontendOrigin])
 
-# Databricks connection
-HOST = os.getenv('DATABRICKS_HOST')
-HTTP_PATH = os.getenv('DATABRICKS_HTTP_PATH')
-ACCESS_TOKEN = os.getenv('DATABRICKS_TOKEN')
+# Setup Azure Key Vault client
+KEY_VAULT_URL = os.getenv("KEY_VAULT_URL")
 
-# JWT setup
-SECRET_KEY = os.getenv("JWT_SECRET")
-JWT_EXP_DELTA_SECONDS = 300  # 5 minutes
+credential = ClientSecretCredential(
+        tenant_id =  os.getenv('TENANT_ID'),
+        client_id =  os.getenv('CLIENT_ID'),
+        client_secret =  os.getenv('CLIENT_SECRET')
+)
+secret_client = SecretClient(vault_url=KEY_VAULT_URL, credential=credential)
+
+# Retrieve secrets from Azure Key Vault
+HOST = secret_client.get_secret("DATABRICKS-HOST").value
+HTTP_PATH = secret_client.get_secret("DATABRICKS-HTTP-PATH").value
+ACCESS_TOKEN = secret_client.get_secret("DATABRICKS-TOKEN").value
+
+
+# JWT Setup
+# SECRET_KEY = os.getenv("JWT_SECRET")
+SECRET_KEY = secret_client.get_secret("JWT-SECRET").value
+# print(SECRET_KEY)
+JWT_EXP_DELTA_SECONDS = 300  # Token valid for 5 minutes
 
 def generate_jwt(email):
     payload = {
@@ -99,8 +115,8 @@ def login():
 
                 userrole = result[1]
                 token = generate_jwt(email)
-                print(f"Generated token: {token}")
-                print(f"User Role: {userrole}")
+                # print(f"Generated token: {token}")
+                # print(f"User Role: {userrole}")
 
                 response = jsonify({
                     "message": "Login successful",
@@ -123,7 +139,7 @@ def protected():
         return jsonify({"message": "Unauthorized - No token provided"}), 401
 
     token = auth_header.split(" ")[1]
-    print(f"Received token:", token)
+    # print(f"Received token:", token)
 
     try:
         decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
@@ -359,7 +375,7 @@ GROUP BY
                     "authorized_growers": row[3]
                 } for row in summary_data]
                 
-                print(f"Summary Data:", summary_data)
+                # print(f"Summary Data:", summary_data)
 
         return jsonify({
             "contracted_ci_score": ci_score,
@@ -377,5 +393,5 @@ GROUP BY
 
 # Run app
 if __name__ == '__main__':
-    # app.run(debug=True, port=3000, host="localhost")
-    app.run(debug=True, port=3000, host="0.0.0.0")
+    app.run(debug=True, port=3000, host="localhost")
+    # app.run(debug=True, port=3000, host="0.0.0.0")

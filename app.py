@@ -11,8 +11,8 @@ load_dotenv()
 
 app = Flask(__name__)
 
-FrontendOrigin = "http://172.172.147.218"
-# FrontendOrigin = "http://localhost:5173"
+# FrontendOrigin = "http://172.172.147.218"
+FrontendOrigin = "http://localhost:5173"
 # Enable CORS
 CORS(app, supports_credentials=True, origins=[FrontendOrigin])
 
@@ -315,6 +315,25 @@ GROUP BY
                 pending_data = cursor.fetchall()
                 pending = [{"role": row[0], "pending": row[1]} for row in pending_data]
 
+            # summary card data 
+                cursor.execute("""
+    SELECT 
+  contractedciscore,
+  contractedbushels,
+  rebate,
+  authorizedgrowers
+FROM gold_layer.metadata;
+ """)           
+                summary_data = cursor.fetchall()
+                summary = [{
+    "contracted_ci_score": row[0],
+    "contracted_bushels": row[1],
+    "rebate": row[2],
+    "authorized_growers": row[3]
+} for row in summary_data]
+                
+                print(f"Summary Data:", summary_data)
+
         return jsonify({
             "contracted_ci_score": ci_score,
             "total_bushels": total_bushels,
@@ -322,7 +341,8 @@ GROUP BY
              "contract_ci_score_level_delivered": contract_delivered,
             "contract_ci_score_level_pending": contract_pending,
             "ci_score_level_delivered": delivered,
-            "ci_score_level_pending": pending
+            "ci_score_level_pending": pending,
+            "summary": summary
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -330,5 +350,5 @@ GROUP BY
 
 # Run app
 if __name__ == '__main__':
-    # app.run(debug=True, port=3000, host="localhost")
-    app.run(debug=True, port=3000, host="0.0.0.0")
+    app.run(debug=True, port=3000, host="localhost")
+    # app.run(debug=True, port=3000, host="0.0.0.0")

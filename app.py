@@ -15,7 +15,7 @@ load_dotenv()
 
 app = Flask(__name__)
 # FrontendOrigin = "http://172.172.147.218"
-FrontendOrigin = "http://localhost:5173"
+FrontendOrigin = "http://localhost:5173" 
 
 CORS(app, supports_credentials=True, origins=[FrontendOrigin])
 
@@ -103,7 +103,7 @@ def login():
         with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(f"""
-                    SELECT password, userrole 
+                    SELECT password, userrole , plantid
                     FROM gage_dev_databricks.gold_layer.customer 
                     WHERE email = ?
                 """, (email,))
@@ -114,6 +114,7 @@ def login():
                     return jsonify({"message": "Invalid email or password"}), 401
 
                 userrole = result[1]
+                plantid = result[2]
                 token = generate_jwt(email)
                 # print(f"Generated token: {token}")
                 # print(f"User Role: {userrole}")
@@ -121,6 +122,7 @@ def login():
                 response = jsonify({
                     "message": "Login successful",
                     "userrole": userrole,
+                    "plantid": plantid,
                     "token": token  # Send token to frontend
                 })
                 response.headers["Access-Control-Allow-Origin"] = FrontendOrigin
@@ -389,6 +391,77 @@ GROUP BY
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route('/setting/manual-input', methods=['GET', 'POST'])
+def manual_input_handler():
+    if request.method == 'GET':
+        plant_id = request.args.get('plantid')  # Get plantid from query string if provided
+        print("Received GET request with plantid:", plant_id)
+
+        try:
+            with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+                with connection.cursor() as cursor:
+                    if plant_id:
+                        # print("Received GET request with plantid:", plant_id)
+                        query = "SELECT * FROM gold_layer.plantinfo WHERE plantid = ?"
+                        cursor.execute(query, (plant_id,))
+                    else:
+                        # print("Received GET request without plantid")
+                        query = "SELECT * FROM gold_layer.plantinfo"
+                        cursor.execute(query)
+
+                    rows = cursor.fetchall()
+                    columns = [desc[0] for desc in cursor.description]
+                    result = [dict(zip(columns, row)) for row in rows]
+                    return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    elif request.method == 'POST':
+        print("Received POST request" + str(request.get_json()))
+        try:
+            data = request.get_json()
+
+            # Validate required fields (you can customize as needed)
+            required_fields = [
+                 "plantid", "totalbushelsprocessed", "totalethanolproduced",
+                "gridelectricusage", "renewablelectricusage", "fossilgasused", "coalusage",
+                "naturalgasrenewable45z", "convefficiency", "createdate", "updateddate", "updatedby"
+            ]
+            for field in required_fields:
+                if field not in data:
+                    return jsonify({"error": f"Missing field: {field}"}), 400
+
+            with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO gold_layer.plantinfo (
+                             plantid, totalbushelsprocessed, totalethanolproduced,
+                            gridelectricusage, renewablelectricusage, fossilgasused, coalusage,
+                            naturalgasrenewable45z, convefficiency, createdate, updateddate,
+                            updatedon, updatedby
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
+                    """, (
+                        data["plantid"],
+                        data["totalbushelsprocessed"],
+                        data["totalethanolproduced"],
+                        data["gridelectricusage"],
+                        data["renewablelectricusage"],
+                        data["fossilgasused"],
+                        data["coalusage"],
+                        data["naturalgasrenewable45z"],
+                        data["convefficiency"],
+                        data["createdate"],
+                        data["updateddate"],
+                        data.get("updatedon"),  # Can be None
+                        data["updatedby"]
+                    ))
+
+            return jsonify({"status": "Manual plant input inserted successfully ✅"})
+
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+  
 
 
 # Run app

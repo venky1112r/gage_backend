@@ -256,25 +256,25 @@ FROM gold_layer.dashboard_info;
 
                 cursor.execute("""
                     SELECT
-                        CASE
-                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                            ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
-                        END AS customertype,
-                        ROUND(SUM(c.SuppliedQuantity),2) AS Bushels,
-                        ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
-                    from gold.contract c
-                        left outer join bronze.cultura_ci ci on ci.producer_id=c.NameID
-                    GROUP BY
-                        CASE
-                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                            ELSE 'Other'
-                    END;
+    CASE
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+        ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+    END AS customertype,
+    ROUND(SUM(c.SuppliedQuantity),2) AS Bushels,
+    ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
+from gold.contractdata c
+    left outer join bronze.cultura_ci ci on ci.producer_id=c.NameID
+GROUP BY
+    CASE
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+        ELSE 'Other'
+END;
                 """)
                 contract_delivered_data = cursor.fetchall()
                 
@@ -284,26 +284,26 @@ FROM gold_layer.dashboard_info;
                 # Contract BI CI Score Level Pending 
 
                 cursor.execute("""
-                   SELECT
-                                    CASE
-                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                                        ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
-                                    END AS customertype,
-                                    ROUND(SUM(c.RemainingQuantity),2) AS Bushels,
-                                    ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
-                                from gold.contract c
-                                    left outer join bronze.cultura_ci ci on ci.producer_id=c.NameID
-                                GROUP BY
-                                    CASE
-                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                                        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                                        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                                        ELSE 'Other'
-                                END;
+                  SELECT
+    CASE
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+        ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+    END AS customertype,
+    ROUND(SUM(c.RemainingQuantity),2) AS Bushels,
+    ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
+from gold.contractdata c
+    left outer join bronze.cultura_ci ci on ci.producer_id=c.NameID
+GROUP BY
+    CASE
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+        WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+        WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+        ELSE 'Other'
+END;
                 """)
                 contract_pending_data = cursor.fetchall()
                 contract_pending = [{"nameidtype": row[0], "total_pending": row[1], "ci_score": row[2]} for row in contract_pending_data if len(row) >= 3]

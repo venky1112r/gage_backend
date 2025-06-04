@@ -238,19 +238,19 @@ def dashboard():
         with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
             with connection.cursor() as cursor:
                 # Contracted CI Score
-                cursor.execute("SELECT ROUND(AVG(ci_score_final_gc02e_per_MJ), 2)FROM gold_layer.dashboard_info;")
-                ci_score = cursor.fetchone()[0]
+                # cursor.execute("SELECT ROUND(AVG(ci_score_final_gc02e_per_MJ), 2)FROM gold_layer.dashboard_info;")
+                # ci_score = cursor.fetchone()[0]
 
                 # Total Bushels
-                cursor.execute("SELECT ROUND(SUM(contract_contractquantity), 2)FROM gold_layer.dashboard_info;")
-                total_bushels = cursor.fetchone()[0]
+                # cursor.execute("SELECT ROUND(SUM(contract_contractquantity), 2)FROM gold_layer.dashboard_info;")
+                # total_bushels = cursor.fetchone()[0]
 
                 # Authorized Grower Percentage
-                cursor.execute("""
-                    SELECT ROUND(AVG(CASE WHEN contract_schedules_schedule_nameidtype = 'C' THEN 100.0 ELSE 0.0 END), 2)
-FROM gold_layer.dashboard_info;
-                """)
-                authorized_grower = cursor.fetchone()[0]
+#                 cursor.execute("""
+#                     SELECT ROUND(AVG(CASE WHEN contract_schedules_schedule_nameidtype = 'C' THEN 100.0 ELSE 0.0 END), 2)
+# FROM gold_layer.dashboard_info;
+#                 """)
+#                 authorized_grower = cursor.fetchone()[0]
 
                 # Contract BI CI Score Level Delivered
 
@@ -310,55 +310,55 @@ END;
 
 
                 # bushels by ci score delivered
-                cursor.execute("""
-                                        SELECT
-                        CASE
-                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                            ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
-                        END AS customertype,
-                        ROUND(SUM(contract_appliedquantity), 2) AS Bushels
-                    FROM
-                        gold_layer.dashboard_info
-                    GROUP BY
-                        CASE
-                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                            WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                            WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                            ELSE 'Other'
-                        END;
-                """)
-                delivered_data = cursor.fetchall()
+                # cursor.execute("""
+                #                         SELECT
+                #         CASE
+                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                #             ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+                #         END AS customertype,
+                #         ROUND(SUM(contract_appliedquantity), 2) AS Bushels
+                #     FROM
+                #         gold_layer.dashboard_info
+                #     GROUP BY
+                #         CASE
+                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                #             ELSE 'Other'
+                #         END;
+                # """)
+                # delivered_data = cursor.fetchall()
             
-                bushels_delivered = [{"role": row[0], "delivered": row[1], "ci_score": row[2]} for row in delivered_data if len(row) >= 3]
+                # bushels_delivered = [{"role": row[0], "delivered": row[1], "ci_score": row[2]} for row in delivered_data if len(row) >= 3]
 
                 # bushels by ci score Pending
-                cursor.execute("""
-                    SELECT
-    CASE
-        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-        ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
-    END AS customertype,
-    ROUND(SUM(contract_remainingquantity), 2) AS Bushels
-FROM
-    gold_layer.dashboard_info
-GROUP BY
-    CASE
-        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-        WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-        WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-        ELSE 'Other'
-    END;
-                """)
-                pending_data = cursor.fetchall()
-                bushels_pending = [{"role": row[0], "pending": row[1], "ci_score": row[2]} for row in pending_data if len(row) >= 3]
+#                 cursor.execute("""
+#                     SELECT
+#     CASE
+#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+#         ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
+#     END AS customertype,
+#     ROUND(SUM(contract_remainingquantity), 2) AS Bushels
+# FROM
+#     gold_layer.dashboard_info
+# GROUP BY
+#     CASE
+#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+#         ELSE 'Other'
+#     END;
+#                 """)
+#                 pending_data = cursor.fetchall()
+#                 bushels_pending = [{"role": row[0], "pending": row[1], "ci_score": row[2]} for row in pending_data if len(row) >= 3]
 
             # summary card data 
                 cursor.execute("""
@@ -380,18 +380,235 @@ GROUP BY
                 # print(f"Summary Data:", summary_data)
 
         return jsonify({
-            "contracted_ci_score": ci_score,
-            "total_bushels": total_bushels,
-            "authorized_grower_percentage": authorized_grower,
+            # "contracted_ci_score": ci_score,
+            # "total_bushels": total_bushels,
+            # "authorized_grower_percentage": authorized_grower,
              "contract_ci_score_level_delivered": contract_delivered,
             "contract_ci_score_level_pending": contract_pending,
-            "bushels_ci_score_level_delivered": bushels_delivered,
-            "bushels_ci_score_level_pending": bushels_pending,
+            # "bushels_ci_score_level_delivered": bushels_delivered,
+            # "bushels_ci_score_level_pending": bushels_pending,
             "summary": summary
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/dashboard/summary-metrics', methods=['GET'])
+def summary_metrics():
+    try:
+        with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT 
+                        contractedciscore,
+                        contractedbushels,
+                        rebate,
+                        authorizedgrowers
+                    FROM gold_layer.metadata;
+                """)
+                rows = cursor.fetchall()
+                summary = [{
+                    "contracted_ci_score": row[0],
+                    "contracted_bushels": row[1],
+                    "rebate": row[2],
+                    "authorized_growers": row[3]
+                } for row in rows]
+        return jsonify(summary)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500    
     
+@app.route('/dashboard/contract-ci-score-level', methods=['GET'])
+def contract_ci_score_level():
+    
+    try:
+        with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+            with connection.cursor() as cursor:
+                # Delivered
+                cursor.execute("""
+                    SELECT
+                        CASE
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                            ELSE 'Other'
+                        END AS customertype,
+                        ROUND(SUM(c.SuppliedQuantity),2) AS Bushels,
+                        ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
+                    FROM gold.contractdata c
+                    LEFT OUTER JOIN bronze.cultura_ci ci ON ci.producer_id = c.NameID
+                    GROUP BY 1
+                """)
+                delivered_data = cursor.fetchall()
+                delivered = [{"nameidtype": row[0], "total_delivered": row[1], "ci_score": row[2]} for row in delivered_data]
+
+                # Pending
+                cursor.execute("""
+                    SELECT
+                        CASE
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
+                            WHEN c.SupplierID = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
+                            WHEN c.SupplierID = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
+                            ELSE 'Other'
+                        END AS customertype,
+                        ROUND(SUM(c.RemainingQuantity),2) AS Bushels,
+                        ROUND(AVG(ci.ci_score_final_gc02e_per_MJ),2) CIScore
+                    FROM gold.contractdata c
+                    LEFT OUTER JOIN bronze.cultura_ci ci ON ci.producer_id = c.NameID
+                    GROUP BY 1
+                """)
+                pending_data = cursor.fetchall()
+                pending = [{"nameidtype": row[0], "total_pending": row[1], "ci_score": row[2]} for row in pending_data]
+
+        return jsonify({
+            "contract_ci_score_level_delivered": delivered,
+            "contract_ci_score_level_pending": pending
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+@app.route('/dashboard/plants-ci-score-level', methods=['GET'])
+def customer_type_percentage_by_plant():
+    try:
+        with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    WITH CustomerTypeBushels AS (
+                        SELECT
+                            pm.PlantName,
+                            SUM(CASE WHEN c.SupplierID = 'C' AND ci.ci_score_final_gc02e_per_bu IS NOT NULL THEN CAST(c.SuppliedQuantity AS DOUBLE) ELSE 0.0 END) AS Grower_Bushels,
+                            SUM(CASE WHEN c.SupplierID = 'G' AND ci.ci_score_final_gc02e_per_bu IS NOT NULL THEN CAST(c.SuppliedQuantity AS DOUBLE) ELSE 0.0 END) AS Retailer_Bushels,
+                            SUM(CASE WHEN c.SupplierID = 'C' AND ci.ci_score_final_gc02e_per_bu IS NULL THEN CAST(c.SuppliedQuantity AS DOUBLE) ELSE 0.0 END) AS NoScoreGrower_Bushels,
+                            SUM(CASE WHEN c.SupplierID = 'G' AND ci.ci_score_final_gc02e_per_bu IS NULL THEN CAST(c.SuppliedQuantity AS DOUBLE) ELSE 0.0 END) AS NoScoreRetailer_Bushels,
+                            SUM(CASE WHEN c.SupplierID NOT IN ('C', 'G') THEN CAST(c.SuppliedQuantity AS DOUBLE) ELSE 0.0 END) AS Other_Bushels,
+                            SUM(CAST(c.SuppliedQuantity AS DOUBLE)) AS TotalBushels_Plant
+                        FROM
+                            gold.contractdata c
+                        INNER JOIN
+                            gold.plant_master pm ON pm.PlantId = c.PlantID
+                        LEFT OUTER JOIN
+                            bronze.cultura_ci ci ON ci.producer_id = c.NameID
+                        GROUP BY
+                            pm.PlantName
+                    )
+                    SELECT
+                        PlantName,
+                        ROUND((Grower_Bushels * 100.0) / NULLIF(TotalBushels_Plant, 0), 2) AS Grower_Percentage,
+                        ROUND((Retailer_Bushels * 100.0) / NULLIF(TotalBushels_Plant, 0), 2) AS Retailer_Percentage,
+                        ROUND((NoScoreGrower_Bushels * 100.0) / NULLIF(TotalBushels_Plant, 0), 2) AS NoScoreGrower_Percentage,
+                        ROUND((NoScoreRetailer_Bushels * 100.0) / NULLIF(TotalBushels_Plant, 0), 2) AS NoScoreRetailer_Percentage,
+                        ROUND((Other_Bushels * 100.0) / NULLIF(TotalBushels_Plant, 0), 2) AS Other_Percentage
+                    FROM
+                        CustomerTypeBushels
+                    ORDER BY
+                        PlantName;
+                """)
+
+                result = cursor.fetchall()
+                response_data = [
+                    {
+                        "plant_name": row[0],
+                        "grower_percentage": row[1],
+                        "retailer_percentage": row[2],
+                        "no_score_grower_percentage": row[3],
+                        "no_score_retailer_percentage": row[4],
+                        "other_percentage": row[5]
+                    }
+                    for row in result if len(row) >= 6
+                ]
+
+        return jsonify(response_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500    
+    
+
+@app.route('/sourcing/sources', methods=['GET'])
+def producer_bushels_with_ci():
+    try:
+        with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT
+                        p.Name,
+                        p.Type,
+                        SUM(cq.QtyOfBushels) AS Bushels,
+                        (SUM(cq.QtyOfBushels) * 100.0 / SUM(SUM(cq.QtyOfBushels)) OVER ()) AS PercentOfTotal,
+                        ci.ci_score_final_gc02e_per_MJ    
+                    FROM
+                        gold.producer p
+                    INNER JOIN
+                        gold.contract c ON p.NameID = c.NameID
+                    INNER JOIN
+                        gold.contractqty cq ON cq.ContractID = c.ContractID
+                    INNER JOIN
+                        bronze.cultura_ci ci ON ci.producer_id = p.ERPNameID
+                    GROUP BY
+                        p.Name,
+                        p.Type,
+                        ci.ci_score_final_gc02e_per_MJ;
+                """)
+
+                result = cursor.fetchall()
+                response_data = [
+                    {
+                        "source": row[0],
+                        "type": row[1],
+                        "bushels": row[2],
+                        "percent_of_total": row[3],
+                        "ci_score_per_MJ": row[4]
+                    }
+                    for row in result if len(row) >= 5
+                ]
+
+        return jsonify(response_data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@app.route('/sourcing/opportunites-map', methods=['GET'])
+def producer_location_ci():
+    try:
+        with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT
+                        p.Name,
+                        p.Type,
+                        CASE 
+                            WHEN p.Lat IS NULL THEN ci.latitude
+                            ELSE p.Lat
+                        END AS latitude,
+                        CASE 
+                            WHEN p.Lon IS NULL THEN ci.longitude
+                            ELSE p.Lon
+                        END AS longitude,
+                        ci.ci_score_final_gc02e_per_MJ
+                    FROM
+                        gold.producer p
+                    INNER JOIN
+                        bronze.cultura_ci ci ON ci.producer_id = p.ERPNameID
+                """)
+                
+                rows = cursor.fetchall()
+
+                result = [
+                    {
+                        "name": row[0],
+                        "type": row[1],
+                        "latitude": row[2],
+                        "longitude": row[3],
+                        "ci_score": row[4]
+                    }
+                    for row in rows if len(row) == 5
+                ]
+
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 @app.route('/setting/manual-input', methods=['GET', 'POST'])
 def manual_input_handler():
     if request.method == 'GET':
@@ -461,8 +678,7 @@ def manual_input_handler():
 
         except Exception as e:
             return jsonify({"error": str(e)}), 500
-  
-
+        
 
 # Run app
 if __name__ == '__main__':

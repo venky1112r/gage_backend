@@ -103,26 +103,24 @@ def login():
         with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(f"""
-                    SELECT password, userrole , plantid
-                    FROM gage_dev_databricks.gold_layer.customer 
-                    WHERE email = ?
+                select r.roleid,r.role,u.password,u.erpid,u.plantid
+from gold.userinfo as u inner join gold.rolemasterinfo as r on u.roleid=r.roleid  WHERE u.username = ?
                 """, (email,))
                 
                 result = cursor.fetchone()
-
-                if not result or password != result[0]:
+                if not result or password != result[2]:
                     return jsonify({"message": "Invalid email or password"}), 401
 
                 userrole = result[1]
-                plantid = result[2]
+                erpid = result[3]
+                plantid = result[4]
                 token = generate_jwt(email)
-                # print(f"Generated token: {token}")
-                # print(f"User Role: {userrole}")
-
+               
                 response = jsonify({
                     "message": "Login successful",
                     "userrole": userrole,
                     "plantid": plantid,
+                    "erpid": erpid,
                     "token": token  # Send token to frontend
                 })
                 response.headers["Access-Control-Allow-Origin"] = FrontendOrigin
@@ -231,6 +229,59 @@ def delete_user():
         return jsonify({"status": f"User with userid '{userrole}' deleted successfully ✅"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# -------------------- PASSWORD RESET ENDPOINT --------------------
+
+@app.route("/api/reset-password-request", methods=["POST"])
+def send_password_reset_email():
+    data = request.get_json()
+    customer_id = data.get("customerId")
+
+    # Dummy function - replace with actual implementation
+    customer = get_customer_by_id(customer_id)
+    if not customer:
+        return jsonify({"message": "Customer not found"}), 404
+
+    # Generate token
+    token = generate_reset_token(customer_id)
+
+    # Save token (implement save_token securely)
+    save_token(customer_id, token, expiry_minutes=30)
+
+    # Construct reset link
+    reset_link = f"https://yourfrontend.com/reset-password?token={token}"
+
+    # Send email (make sure render_template and send_email are defined properly)
+    send_email(
+        to=customer["email"],
+        subject="Reset your G.A.G.E. password",
+        html=render_template("reset_email.html", customer_name=customer["name"], reset_link=reset_link)
+    )
+
+    return jsonify({"message": "Reset email sent"})
+
+# -------------------- UTILITIES --------------------
+
+def generate_reset_token(customer_id):
+    payload = {
+        "customer_id": customer_id,
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+    return token
+
+# Dummy functions for demonstration
+def get_customer_by_id(customer_id):
+    # You should query Databricks or your database
+    return {"id": customer_id, "email": "customer@example.com", "name": "Customer Name"}
+
+def save_token(customer_id, token, expiry_minutes=30):
+    # Save to your database or Redis with expiry
+    pass
+
+def send_email(to, subject, html):
+    # Implement using SendGrid, SMTP, etc.
+    print(f"Sending email to {to} with subject {subject}")
     
 @app.route('/api/dashboard-metrics', methods=['GET'])
 def dashboard():
@@ -309,57 +360,6 @@ END;
                 contract_pending = [{"nameidtype": row[0], "total_pending": row[1], "ci_score": row[2]} for row in contract_pending_data if len(row) >= 3]
 
 
-                # bushels by ci score delivered
-                # cursor.execute("""
-                #                         SELECT
-                #         CASE
-                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                #             ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
-                #         END AS customertype,
-                #         ROUND(SUM(contract_appliedquantity), 2) AS Bushels
-                #     FROM
-                #         gold_layer.dashboard_info
-                #     GROUP BY
-                #         CASE
-                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-                #             WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-                #             WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-                #             ELSE 'Other'
-                #         END;
-                # """)
-                # delivered_data = cursor.fetchall()
-            
-                # bushels_delivered = [{"role": row[0], "delivered": row[1], "ci_score": row[2]} for row in delivered_data if len(row) >= 3]
-
-                # bushels by ci score Pending
-#                 cursor.execute("""
-#                     SELECT
-#     CASE
-#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-#         ELSE 'Other' -- Changed 'Custome' to 'Other' for clarity and common practice
-#     END AS customertype,
-#     ROUND(SUM(contract_remainingquantity), 2) AS Bushels
-# FROM
-#     gold_layer.dashboard_info
-# GROUP BY
-#     CASE
-#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Grower'
-#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NOT NULL THEN 'Retailer'
-#         WHEN contract_schedules_schedule_nameidtype = 'C' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Grower'
-#         WHEN contract_schedules_schedule_nameidtype = 'G' AND ci_score_final_gc02e_per_bu IS NULL THEN 'No Score Retailer'
-#         ELSE 'Other'
-#     END;
-#                 """)
-#                 pending_data = cursor.fetchall()
-#                 bushels_pending = [{"role": row[0], "pending": row[1], "ci_score": row[2]} for row in pending_data if len(row) >= 3]
-
             # summary card data 
                 cursor.execute("""
                     SELECT 
@@ -403,7 +403,7 @@ def summary_metrics():
                         contractedbushels,
                         rebate,
                         authorizedgrowers
-                    FROM gold_layer.metadata;
+                    FROM gold.dashboardinfo;
                 """)
                 rows = cursor.fetchall()
                 summary = [{
@@ -620,11 +620,11 @@ def manual_input_handler():
                 with connection.cursor() as cursor:
                     if plant_id:
                         # print("Received GET request with plantid:", plant_id)
-                        query = "SELECT * FROM gold_layer.plantinfo WHERE plantid = ?"
+                        query = "SELECT * FROM gold.plantinfo WHERE plantid = ?"
                         cursor.execute(query, (plant_id,))
                     else:
                         # print("Received GET request without plantid")
-                        query = "SELECT * FROM gold_layer.plantinfo"
+                        query = "SELECT * FROM gold.plantinfo"
                         cursor.execute(query)
 
                     rows = cursor.fetchall()
@@ -643,7 +643,7 @@ def manual_input_handler():
             required_fields = [
                  "plantid", "totalbushelsprocessed", "totalethanolproduced",
                 "gridelectricusage", "renewablelectricusage", "fossilgasused", "coalusage",
-                "naturalgasrenewable45z", "convefficiency", "createdate", "updateddate", "updatedby"
+                "naturalgasrenewable45z", "convefficiency", "fromdate", "todate",  "createdby"
             ]
             for field in required_fields:
                 if field not in data:
@@ -652,12 +652,12 @@ def manual_input_handler():
             with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
                 with connection.cursor() as cursor:
                     cursor.execute("""
-                        INSERT INTO gold_layer.plantinfo (
+                        INSERT INTO gold.plantinfo (
                              plantid, totalbushelsprocessed, totalethanolproduced,
                             gridelectricusage, renewablelectricusage, fossilgasused, coalusage,
-                            naturalgasrenewable45z, convefficiency, createdate, updateddate,
-                            updatedon, updatedby
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,  ?, ?, ?, ?)
+                            naturalgasrenewable45z, convefficiency, fromdate, todate,
+                             createdby
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,  ?, ?, ?)
                     """, (
                         data["plantid"],
                         data["totalbushelsprocessed"],
@@ -668,10 +668,10 @@ def manual_input_handler():
                         data["coalusage"],
                         data["naturalgasrenewable45z"],
                         data["convefficiency"],
-                        data["createdate"],
-                        data["updateddate"],
-                        data.get("updatedon"),  # Can be None
-                        data["updatedby"]
+                        data["fromdate"],
+                        data["todate"],
+                        # data.get("updatedon"),  # Can be None
+                        data["createdby"]
                     ))
 
             return jsonify({"status": "Manual plant input inserted successfully ✅"})
@@ -679,7 +679,24 @@ def manual_input_handler():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
         
+@app.route('/setting/business-rules', methods=['GET'])
+def business_rules_handler():
+    try:
+        with sql.connect(server_hostname=HOST, http_path=HTTP_PATH, access_token=ACCESS_TOKEN) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    select p.Name from gold.ciscore as ci inner join gold.producer as p on ci.nameid=p.NameID where p.Type='G'
+                """)
+                
+                rows = cursor.fetchall()  # [(name1,), (name2,), ...]
 
+                # Print formatted for debug like Row(Name='...')
+                print([f"Row(Name='{row[0]}')" for row in rows])
+
+                # Return as plain JSON
+                return jsonify([{"Name": row[0]} for row in rows])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 # Run app
 if __name__ == '__main__':
     app.run(debug=True, port=3000, host="localhost")
